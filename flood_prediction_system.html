@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flood Risk Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f0e8;
+    --surface: #ede8dd;
+    --border: rgba(100,80,50,0.12);
+    --border2: rgba(100,80,50,0.22);
+    --text: #2c2416;
+    --muted: #7a6a52;
+    --accent: #5a7a3a;
+    --low: #3d6b2a;
+    --low-bg: rgba(61,107,42,0.1);
+    --low-border: rgba(61,107,42,0.3);
+    --mod: #a0620a;
+    --mod-bg: rgba(160,98,10,0.1);
+    --mod-border: rgba(160,98,10,0.3);
+    --high: #8b2e10;
+    --high-bg: rgba(139,46,16,0.1);
+    --high-border: rgba(139,46,16,0.32);
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 520px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Header */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(90,122,58,0.12);
+    border: 1px solid rgba(90,122,58,0.28);
+    border-radius: 20px;
+    padding: 4px 12px;
+    margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+  .badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.5; transform:scale(0.7); }
+  }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  h1 span { color: var(--accent); }
+
+  .sub {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 2.5rem;
+  }
+
+  /* Input cards */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .coord-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+
+  .input-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+  .input-card:focus-within { border-color: var(--border2); }
+  .input-card label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .input-card input[type=number] {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'Space Mono', monospace;
+    font-size: 17px;
+    color: var(--text);
+    -moz-appearance: textfield;
+  }
+  .input-card input[type=number]::-webkit-outer-spin-button,
+  .input-card input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  ::placeholder { color: rgba(122,106,82,0.35); }
+
+  /* Button */
+  .cta-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-bottom: 1.5rem;
+  }
+  .cta-btn:hover { background: #476030; }
+  .cta-btn:active { transform: scale(0.99); }
+  .cta-btn:disabled { background: #a0b890; cursor: not-allowed; }
+
+  /* Error */
+  .error-msg {
+    display: none;
+    background: var(--high-bg);
+    border: 1px solid var(--high-border);
+    color: var(--high);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+  }
+
+  /* Result */
+  .result-box {
+    display: none;
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid;
+    animation: fadeUp 0.4s ease both;
+  }
+  .result-box.low  { background: var(--low-bg);  border-color: var(--low-border); }
+  .result-box.mod  { background: var(--mod-bg);  border-color: var(--mod-border); }
+  .result-box.high { background: var(--high-bg); border-color: var(--high-border); }
+
+  .result-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .result-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .low .result-label  { color: var(--low); }
+  .mod .result-label  { color: var(--mod); }
+  .high .result-label { color: var(--high); }
+
+  .result-level {
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+  .low .result-level  { color: var(--low); }
+  .mod .result-level  { color: var(--mod); }
+  .high .result-level { color: var(--high); }
+
+  .score-circle {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .low .score-circle  { border-color: var(--low-border); }
+  .mod .score-circle  { border-color: var(--mod-border); }
+  .high .score-circle { border-color: var(--high-border); }
+
+  .score-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .low .score-num  { color: var(--low); }
+  .mod .score-num  { color: var(--mod); }
+  .high .score-num { color: var(--high); }
+
+  .score-sub {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .bar-wrap {
+    height: 6px;
+    background: rgba(100,80,50,0.12);
+    border-radius: 3px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  .low .bar-fill  { background: var(--low); }
+  .mod .bar-fill  { background: var(--mod); }
+  .high .bar-fill { background: var(--high); }
+
+  /* Dataset values */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .metric {
+    background: rgba(100,80,50,0.07);
+    border-radius: 10px;
+    padding: 10px 10px;
+  }
+  .metric-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .metric-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .alert-msg {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(100,80,50,0.07);
+    margin-bottom: 12px;
+  }
+  .low .alert-msg  { color: var(--low); }
+  .mod .alert-msg  { color: var(--mod); }
+  .high .alert-msg { color: var(--high); }
+
+  .matched-loc {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="badge">INDIA · DATASET-POWERED</div>
+  <h1>Flood <span>Risk</span><br>Predictor</h1>
+  <p class="sub">Enter coordinates — data looked up from dataset</p>
+
+  <p class="section-label">Location</p>
+  <div class="coord-row">
+    <div class="input-card">
+      <label>Latitude</label>
+      <input type="number" id="lat" placeholder="e.g. 11.3410" step="0.0001">
+    </div>
+    <div class="input-card">
+      <label>Longitude</label>
+      <input type="number" id="lon" placeholder="e.g. 77.7172" step="0.0001">
+    </div>
+  </div>
+
+  <button class="cta-btn" id="btn" onclick="predict()">Assess Flood Risk →</button>
+
+  <div class="error-msg" id="errMsg"></div>
+
+  <div class="result-box" id="result">
+    <div class="result-top">
+      <div>
+        <div class="result-label">Flood Risk Level</div>
+        <div class="result-level" id="riskLevel">—</div>
+      </div>
+      <div class="score-circle">
+        <div class="score-num" id="scoreNum">—</div>
+        <div class="score-sub">score</div>
+      </div>
+    </div>
+
+    <div class="bar-wrap"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Rainfall</div>
+        <div class="metric-val" id="mRain">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">River Level</div>
+        <div class="metric-val" id="mRiver">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Humidity</div>
+        <div class="metric-val" id="mHumid">—</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Soil Moisture</div>
+        <div class="metric-val" id="mSoil">—</div>
+      </div>
+    </div>
+
+    <div class="alert-msg" id="alertMsg"></div>
+    <div class="matched-loc" id="matchedLoc"></div>
+  </div>
+
+</div>
+
+<script>
+  async function predict() {
+    const lat = document.getElementById('lat').value.trim();
+    const lon = document.getElementById('lon').value.trim();
+    const err = document.getElementById('errMsg');
+    const btn = document.getElementById('btn');
+
+    err.style.display = 'none';
+
+    if (!lat || !lon) {
+      err.textContent = 'Please enter both Latitude and Longitude.';
+      err.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Looking up dataset...';
+
+    try {
+      const res = await fetch(`/predict?lat=${lat}&lon=${lon}`);
+      if (!res.ok) throw new Error('Server error: ' + res.status);
+      const d = await res.json();
+
+      const classMap = { LOW: 'low', MODERATE: 'mod', HIGH: 'high' };
+      const cls = classMap[d.level];
+      const pct = Math.min(d.score / 100 * 100, 100);
+
+      const box = document.getElementById('result');
+      box.className = 'result-box ' + cls;
+      box.style.display = 'block';
+
+      document.getElementById('riskLevel').textContent = d.level;
+      document.getElementById('scoreNum').textContent  = d.score;
+      document.getElementById('barFill').style.width   = pct + '%';
+      document.getElementById('mRain').textContent     = d.rainfall + ' mm';
+      document.getElementById('mRiver').textContent    = d.river_level + ' m';
+      document.getElementById('mHumid').textContent    = d.humidity + ' %';
+      document.getElementById('mSoil').textContent     = d.soil_moisture;
+
+      const msgs = {
+        HIGH:     '⚠ Immediate monitoring required. Evacuate if necessary.',
+        MODERATE: '⚡ Caution advised. Monitor water levels closely.',
+        LOW:      '✓ Conditions stable. Continue routine monitoring.'
+      };
+      document.getElementById('alertMsg').textContent    = msgs[d.level];
+      document.getElementById('matchedLoc').textContent  =
+        '📍 Nearest dataset point: ' + d.matched_lat + ', ' + d.matched_lon;
+
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    } catch (e) {
+      err.textContent = 'Could not connect to server. Make sure app.py is running on localhost:5000.';
+      err.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Assess Flood Risk →';
+  }
+</script>
+</body>
+</html>
